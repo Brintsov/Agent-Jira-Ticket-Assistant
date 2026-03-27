@@ -456,7 +456,6 @@ class TicketKeySearchTool(Tool):
                 "A single Jira ticket key or multiple ticket keys separated by commas. "
                 "Examples: 'ABC-123' or 'ABC-123,ABC-456'."
             ),
-            "nullable": False,
         }
     }
 
