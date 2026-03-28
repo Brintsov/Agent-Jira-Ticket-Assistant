@@ -39,7 +39,7 @@ class AgentSession:
                 "request.end",
                 request_id=request_id,
                 latency_ms=latency_ms,
-                response_tokens_est=estimate_tokens(response),
+                response_tokens_est=estimate_tokens(str(response)),
                 tools_used=get_used_tools(),
             )
             self._is_first_turn = False
