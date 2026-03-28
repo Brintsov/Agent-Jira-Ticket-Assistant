@@ -9,6 +9,7 @@ from uuid import uuid4
 
 
 _current_request_id: ContextVar[str | None] = ContextVar("current_request_id", default=None)
+_current_used_tools: ContextVar[list[str]] = ContextVar("current_used_tools", default=[])
 _logger = logging.getLogger("jira_agent_observability")
 _default_log_path = Path("logs/agent_observability.jsonl")
 
@@ -52,9 +53,24 @@ def get_request_id() -> str | None:
     return _current_request_id.get()
 
 
+def reset_used_tools() -> None:
+    _current_used_tools.set([])
+
+
+def append_used_tool(tool_name: str) -> None:
+    tools = list(_current_used_tools.get())
+    tools.append(tool_name)
+    _current_used_tools.set(tools)
+
+
+def get_used_tools() -> list[str]:
+    return list(_current_used_tools.get())
+
+
 def estimate_tokens(text: str | None) -> int:
     if not text:
         return 0
+    # rough approximation suitable for quick observability hooks
     return max(1, int(len(text.split()) * 1.3))
 
 
@@ -66,3 +82,4 @@ def log_event(event: str, **fields: Any) -> None:
         **fields,
     }
     _logger.info(json.dumps(payload, default=str, ensure_ascii=False))
+    
