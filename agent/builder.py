@@ -1,7 +1,5 @@
-
-from __future__ import annotations
-
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -9,6 +7,7 @@ from smolagents import CodeAgent
 from smolagents.models import MLXModel
 
 from agent.system_prompt import SYSTEM_PROMPT
+from observation.logging import log_event
 from ticket_repository import TicketRepository
 from tools.analysis_tools import AnalyzeTicketDistributionTool, AnalyzeTicketPatternsTool
 from tools.conversational_tools import DiscussTicketFindingsTool, SummarizeTicketsTool
@@ -19,6 +18,26 @@ from tools.search_tools import (
     SemanticTicketSearchTool,
     TicketKeySearchTool,
 )
+
+
+def _instrument_tool(tool) -> None:
+    original_forward = tool.forward
+    tool_name = getattr(tool, "name", tool.__class__.__name__)
+
+    def wrapped_forward(*args, **kwargs):
+        start = perf_counter()
+        log_event("tool.start", tool=tool_name)
+        try:
+            result = original_forward(*args, **kwargs)
+            latency_ms = round((perf_counter() - start) * 1000, 2)
+            log_event("tool.end", tool=tool_name, latency_ms=latency_ms)
+            return result
+        except Exception as exc:
+            latency_ms = round((perf_counter() - start) * 1000, 2)
+            log_event("tool.error", tool=tool_name, latency_ms=latency_ms, error=str(exc))
+            raise
+
+    tool.forward = wrapped_forward
 
 
 def create_embeddings(config: Any) -> HuggingFaceEmbeddings:
@@ -63,19 +82,22 @@ def create_code_agent(config: Any, repository: TicketRepository, model: MLXModel
     discuss_ticket_findings = DiscussTicketFindingsTool(model)
     analyze_ticket_distribution = AnalyzeTicketDistributionTool(model)
     analyze_ticket_patterns = AnalyzeTicketPatternsTool(model)
+    tools = [
+        exact_search,
+        semantic_search,
+        hybrid_search,
+        broad_search,
+        key_search,
+        summarize_tickets,
+        discuss_ticket_findings,
+        analyze_ticket_distribution,
+        analyze_ticket_patterns,
+    ]
+    for tool in tools:
+        _instrument_tool(tool)
 
     return CodeAgent(
-        tools=[
-            exact_search,
-            semantic_search,
-            hybrid_search,
-            broad_search,
-            key_search,
-            summarize_tickets,
-            discuss_ticket_findings,
-            analyze_ticket_distribution,
-            analyze_ticket_patterns,
-        ],
+        tools=tools,
         instructions=SYSTEM_PROMPT,
         model=model,
         additional_authorized_imports=["json"],
