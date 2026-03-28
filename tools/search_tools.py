@@ -74,24 +74,20 @@ class BroadTicketSearchTool(Tool):
 class ExactTicketSearchTool(Tool):
     name = "exact_ticket_search"
     description = (
-        "Search Jira tickets using exact structured filters and simple text contains filters.\n\n"
+        "Search Jira tickets using structured filters such as project, status, resolution, issue type, "
+        "priority, and optional plain text contains filters.\n\n"
 
-        "Best use cases:\n"
-        "- the user specifies exact metadata such as project, status, resolution, type, or priority\n"
-        "- the user wants direct filtering, not semantic similarity\n"
-        "- the agent needs a deterministic candidate set before semantic reranking or summarization\n\n"
+        "This is the default tool for standard ticket retrieval.\n\n"
 
-        "Good examples:\n"
-        '- "Find resolved Bug tickets in IGNITE"\n'
-        '- "Show High priority issues in project WW"\n'
-        '- "Find tickets with \'login\' in the summary"\n'
-        '- "Find Done Improvements whose description mentions SQL"\n\n'
+        "Use this tool for requests like:\n"
+        '- "Find 50 tickets for project BEAM"\n'
+        '- "Show open bugs in IGNITE"\n'
+        '- "Find high priority issues"\n'
+        '- "Find tickets with login in the summary"\n\n'
 
-        "Not appropriate for:\n"
-        "- fuzzy concept search\n"
-        "- semantic similarity\n"
-        "- paraphrased issue descriptions\n"
-        "- thematic clustering"
+        "Use this tool whenever the user specifies normal filters and does not ask for semantic similarity.\n\n"
+
+        "Do not use issue ID lookup unless the user explicitly provides full Jira issue IDs such as BEAM-123."
     )
 
     inputs = {
@@ -433,20 +429,22 @@ def _parse_keys(ticket_key: str) -> List[str]:
 class TicketKeySearchTool(Tool):
     name = "ticket_key_search"
     description = (
-        "Retrieve Jira tickets by exact ticket key only.\n\n"
+        "Retrieve Jira tickets by explicit Jira issue IDs only.\n\n"
 
-        "Use this tool when the user already knows one or more ticket keys and wants "
-        "the full ticket records returned directly.\n\n"
+        "Use this tool ONLY when the user directly provides one or more full ticket IDs "
+        "in the Jira issue key format, such as BEAM-123 or CORE-456.\n\n"
 
-        "Best use cases:\n"
-        '- "Show ticket ABC-123"\n'
-        '- "Find ABC-123 and ABC-456"\n'
-        '- "Get details for ticket WW-999"\n\n'
+        "Examples of valid use:\n"
+        '- "Show BEAM-123"\n'
+        '- "Find BEAM-123, BEAM-456"\n'
+        '- "Get details for CORE-88"\n\n'
 
-        "Notes:\n"
-        "- This tool does not perform semantic search\n"
-        "- This tool does not use project/status/priority filters\n"
-        "- Matching is based only on exact ticket keys"
+        "DO NOT use this tool when the user provides only a project name or project key, "
+        "such as BEAM, CORE, or IGNITE, without a numeric suffix.\n"
+        "DO NOT use this tool for project-level searches.\n"
+        "DO NOT use this tool for status, priority, type, resolution, keyword, or semantic queries.\n\n"
+
+        "This tool matches only complete issue IDs of the form PROJECT-NUMBER."
     )
 
     inputs = {
