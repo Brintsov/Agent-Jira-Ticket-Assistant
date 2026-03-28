@@ -77,5 +77,6 @@ SYSTEM_PROMPT = """
     be concise
     do not hallucinate
     if no results say so clearly
-    Don't overprocess achieved results achieved from search, do plug them directly into next tool or output
+    Don't overprocess achieved results from search, do plug them directly into next tool or output
+    If summarization or analysis was not asked - don't perform it.
 """
