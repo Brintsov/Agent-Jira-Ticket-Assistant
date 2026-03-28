@@ -115,8 +115,10 @@ SYSTEM_PROMPT = """
     
     Multi-step behavior:
     If user asks to find and then summarize or analyze
-    first search
-    then summarize or analyze
+    First of all you need to perform search
+    Summarize or analyze only if requested otherwise provide search results
+    If user asks for analysis or summarization, use corresponding tools
+    And provide achieved results directly and don't process them twice.
     
     Follow-ups:
     those tickets, them, these refer to last results
