@@ -25,23 +25,10 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterable
 
-from smolagents import CodeAgent
-from smolagents.models import MLXModel
-from langchain_huggingface import HuggingFaceEmbeddings
-
-from ticket_repository import TicketRepository
-from tools.analysis_tools import AnalyzeTicketPatternsTool, AnalyzeTicketDistributionTool
-from tools.conversational_tools import DiscussTicketFindingsTool, SummarizeTicketsTool
-from tools.search_tools import (
-    BroadTicketSearchTool,
-    ExactTicketSearchTool,
-    HybridTicketSearchTool,
-    SemanticTicketSearchTool,
-    TicketKeySearchTool
-)
+from agent.builder import create_code_agent, create_embeddings, create_model, create_repository
+from agent.session import AgentSession
 
 
 DEFAULT_DB_PATH = "./data/tickets.db"
@@ -49,86 +36,6 @@ DEFAULT_VECTORSTORE_PATH = "./data/jira_bge_small"
 DEFAULT_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-3B-Instruct"
 EXIT_COMMANDS = {"exit", "quit", "q", "bye"}
-SYSTEM_PROMPT = """
-    You are a Jira ticket assistant.
-
-    Your job:
-    choose the correct tool
-    retrieve tickets
-    then analyze or summarize if requested
-    never invent data
-    
-    Core rule:
-    Use the simplest correct tool.
-    
-    Critical distinction:
-    "BEAM" means project, not a ticket
-    "BEAM-123" is a ticket ID
-    
-    Never treat BEAM as a ticket ID.
-    
-    Tool routing examples:
-    
-    User: Find 50 tickets for project BEAM
-    Use exact search with project BEAM and limit 50
-    
-    User: Show open bugs in IGNITE
-    Use exact search
-    
-    User: Find high priority tickets in CORE
-    Use exact search
-    
-    User: Show BEAM-123
-    Use ticket_key_search
-    
-    User: Find BEAM-123 and CORE-456
-    Use ticket_key_search
-    
-    User: Find tickets about login failures
-    Use semantic_search
-    
-    User: Show issues related to SQL deadlocks
-    Use semantic_search
-    
-    User: Find open BEAM bugs about login failures
-    Use hybrid_search
-    
-    User: Show CORE tickets related to deployment instability
-    Use hybrid_search
-    
-    User: What is going on in Jira lately
-    Use broad_search
-    
-    User: Give me overview of tickets
-    Use broad_search
-    
-    Important negative example:
-    User: Find tickets for project BEAM
-    Do not use ticket_key_search
-    
-    Decision shortcuts:
-    project only means exact
-    project with number like BEAM-123 means ticket_key_search
-    topic only means semantic_search
-    project plus topic means hybrid_search
-    vague request means broad_search
-    
-    Multi-step behavior:
-    If user asks to find and then summarize or analyze
-    First of all you need to perform search
-    Summarize or analyze only if requested otherwise provide search results
-    If user asks for analysis or summarization, use corresponding tools
-    And provide achieved results directly and don't process them twice.
-    
-    Follow-ups:
-    those tickets, them, these refer to last results
-    do not search again unless needed
-    
-    Output rules:
-    be concise
-    do not hallucinate
-    if no results say so clearly
-"""
 
 
 @dataclass
@@ -148,84 +55,21 @@ class JiraAssistantPipeline:
 
     def __init__(self, config: PipelineConfig) -> None:
         self.config = config
-        self.embeddings = self._build_embeddings()
-        self.repository = self._build_repository()
-        self.model = self._build_model()
-        self.agent = self._build_agent()
-        self._is_first_turn = True
-
-    def _build_embeddings(self) -> HuggingFaceEmbeddings:
-        return HuggingFaceEmbeddings(
-            model_name=self.config.embedding_model,
-            model_kwargs={"device": self.config.embedding_device},
-            encode_kwargs={"normalize_embeddings": True},
-        )
-
-    def _build_repository(self) -> TicketRepository:
-        db_path = Path(self.config.db_path)
-        vectorstore_path = Path(self.config.vectorstore_path)
-
-        if not db_path.exists():
-            raise FileNotFoundError(f"Ticket DB not found: {db_path}")
-        if not vectorstore_path.exists():
-            raise FileNotFoundError(f"Vector store not found: {vectorstore_path}")
-
-        return TicketRepository(
-            str(db_path),
-            str(vectorstore_path),
-            self.embeddings,
-        )
-
-    def _build_model(self) -> MLXModel:
-        return MLXModel(
-            model_id=self.config.llm_model,
-            max_tokens=self.config.max_tokens,
-        )
-
-    def _build_agent(self) -> CodeAgent:
-        exact_search = ExactTicketSearchTool(ticket_repository=self.repository)
-        semantic_search = SemanticTicketSearchTool(ticket_repository=self.repository)
-        hybrid_search = HybridTicketSearchTool(ticket_repository=self.repository)
-        broad_search = BroadTicketSearchTool(ticket_repository=self.repository)
-        key_search = TicketKeySearchTool(ticket_repository=self.repository)
-
-        summarize_tickets = SummarizeTicketsTool(self.model)
-        discuss_ticket_findings = DiscussTicketFindingsTool(self.model)
-        analyze_ticket_distribution = AnalyzeTicketDistributionTool(self.model)
-        analyze_ticket_patterns = AnalyzeTicketPatternsTool(self.model)
-
-        return CodeAgent(
-            tools=[
-                exact_search,
-                semantic_search,
-                hybrid_search,
-                broad_search,
-                key_search,
-                summarize_tickets,
-                discuss_ticket_findings,
-                analyze_ticket_distribution,
-                analyze_ticket_patterns,
-            ],
-            instructions=SYSTEM_PROMPT,
-            model=self.model,
-            additional_authorized_imports=["json"],
-            executor_type="local",
-            executor_kwargs={"timeout_seconds": self.config.timeout_seconds},
-            verbosity_level=self.config.verbosity_level,
-        )
+        self.embeddings = create_embeddings(config)
+        self.repository = create_repository(config, self.embeddings)
+        self.model = create_model(config)
+        self.agent = create_code_agent(config, self.repository, self.model)
+        self.session = AgentSession()
 
     def run(self, prompt: str, *, reset: bool | None = None) -> str:
-        effective_reset = self._is_first_turn if reset is None else reset
-        response = self.agent.run(prompt, reset=effective_reset)
-        self._is_first_turn = False
-        return response
+        return self.session.run(self.agent, prompt, reset=reset)
 
     def run_many(self, prompts: Iterable[str], *, reset_first: bool = True) -> list[tuple[str, str]]:
         results: list[tuple[str, str]] = []
         for i, prompt in enumerate(prompts):
             response = self.run(prompt, reset=(reset_first if i == 0 else False))
             results.append((prompt, response))
-        return results
+        return self.session.run_many(self.agent, prompts, reset_first=reset_first)
 
     def interactive_chat(self) -> None:
         print("Jira assistant ready. Type 'exit' to quit.\n")
