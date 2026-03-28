@@ -1,17 +1,20 @@
+
 import time
 from typing import Iterable
 
 from observation.logging import (
+    get_used_tools,
     estimate_tokens,
     generate_request_id,
     log_event,
+    reset_used_tools,
     reset_request_id,
     set_request_id,
 )
 
 
 class AgentSession:
-    """Maintains conversation reset policy for agent turns"""
+    """Maintains conversation reset policy for agent turns."""
 
     def __init__(self) -> None:
         self._is_first_turn = True
@@ -19,12 +22,14 @@ class AgentSession:
     def run(self, agent, prompt: str, *, reset: bool | None = None) -> str:
         request_id = generate_request_id()
         request_ctx = set_request_id(request_id)
+        reset_used_tools()
         effective_reset = self._is_first_turn if reset is None else reset
         start = time.perf_counter()
         log_event(
             "request.start",
             request_id=request_id,
             reset=effective_reset,
+            prompt=prompt,
             prompt_tokens_est=estimate_tokens(prompt),
         )
         try:
@@ -34,7 +39,8 @@ class AgentSession:
                 "request.end",
                 request_id=request_id,
                 latency_ms=latency_ms,
-                response_tokens_est=estimate_tokens(str(response)),
+                response_tokens_est=estimate_tokens(response),
+                tools_used=get_used_tools(),
             )
             self._is_first_turn = False
             return response
