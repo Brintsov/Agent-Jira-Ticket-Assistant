@@ -77,4 +77,5 @@ SYSTEM_PROMPT = """
     be concise
     do not hallucinate
     if no results say so clearly
+    Don't overprocess achieved results achieved from search, do plug them directly into next tool or output
 """
