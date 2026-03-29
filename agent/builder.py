@@ -20,17 +20,37 @@ from tools.search_tools import (
 )
 
 
+def _truncate_value(value: Any, max_chars: int = 240) -> Any:
+    if isinstance(value, (bool, int, float)) or value is None:
+        return value
+    text = str(value)
+    if len(text) <= max_chars:
+        return value
+    return f"{text[:max_chars]}..."
+
+
+def _serialize_tool_call(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    call_kwargs = {k: _truncate_value(v) for k, v in kwargs.items()}
+    positional = [_truncate_value(v) for v in args]
+    payload: dict[str, Any] = {"kwargs": call_kwargs}
+    if positional:
+        payload["args"] = positional
+    return payload
+
+
 def _instrument_tool(tool) -> None:
     original_forward = tool.forward
     tool_name = getattr(tool, "name", tool.__class__.__name__)
 
     def wrapped_forward(*args, **kwargs):
         start = perf_counter()
+        call_payload = _serialize_tool_call(args, kwargs)
         log_event(
             "tool.start",
             tool=tool_name,
-            args_count=max(0, len(args) - 1),
+            args_count=len(args),
             kwargs_keys=sorted(kwargs.keys()),
+            call=call_payload,
         )
         try:
             result = original_forward(*args, **kwargs)
