@@ -1,26 +1,23 @@
 # Agent Jira Ticket Assistant
 
-## DataSet
+## Overview
 
-This project utilizes the [Apache JIRA Issues Dataset](https://www.kaggle.com/datasets/tedlozzo/apaches-jira-issues?select=changelog.csv), published on Kaggle by Ted Lozzo.  
-The full dataset contains approximately 1,149,323 issue records. Due to hardware and memory constraints, a subset of **50,000 tickets** was sampled for downstream processing.
+Agent Jira Ticket Assistant is a local, agent-driven system for querying and analyzing Jira tickets using a hybrid retrieval pipeline.
 
-The following steps were performed on the sampled dataset:
+The system combines **structured retrieval** (SQLite) and **semantic retrieval** (vector search) within a unified tool-augmented LLM framework. A local language model orchestrates tool usage, dynamically selecting between exact filtering, semantic search, and hybrid strategies depending on the query.
 
-1. **Relational Storage**  
-   The data was ingested into a local **SQLite** database to enable structured querying and efficient filtering.
+This enables context-aware reasoning over large-scale ticket data and supports complex analytical queries such as:
 
-2. **Vectorization and Indexing**  
-   Textual data from the tickets was embedded using the Hugging Face model  
-   `BAAI/bge-small-en-v1.5`.  
-   The embeddings were then stored using **LangChain** with a **Chroma** vector store, creating a local semantic index for similarity-based retrieval.
+- "What are the main recurring issues in the selected project?"
+- "Find open bugs related to HTTP errors and provide a summary"
+- "Analyze the distribution of issue types and priorities in a project"
 
-3. **Hybrid Retrieval Setup**  
-   Both the SQLite database (for structured queries) and the Chroma vector database (for semantic search) were integrated into a hybrid retrieval pipeline.
+### Key capabilities
 
-4. **LLM Integration**  
-   The retrieved context is passed to a local language model,  
-   `Qwen/Qwen2.5-3B-Instruct`, which serves as the reasoning and response generation component of the agent.
+- **Hybrid retrieval**: combines SQL filtering with embedding-based similarity search  
+- **Tool-augmented reasoning**: LLM dynamically selects and executes search/analysis tools  
+- **Context-aware summarization**: synthesizes insights from retrieved tickets  
+- **Local-first architecture**: runs fully locally (LLM + vector store + database)  
 
 ## 🎥 [Watch the Streamlit application demo](https://www.loom.com/share/a3d66e888bad4f579830098c8c8c58ee)
 
@@ -102,6 +99,28 @@ level of importance. The "Improvement" issue type is the only type present, with
 Given the limited evidence, the result set looks concentrated. There are no open-like or resolved-like signals, and no high-priority-like signals. The lack of variety in issue types and the single project 
 focus further reinforce the concentrated nature of the data.
 ```
+
+## DataSet
+
+This project utilizes the [Apache JIRA Issues Dataset](https://www.kaggle.com/datasets/tedlozzo/apaches-jira-issues?select=changelog.csv), published on Kaggle by Ted Lozzo.  
+The full dataset contains approximately 1,149,323 issue records. Due to hardware and memory constraints, a subset of **50,000 tickets** was sampled for downstream processing.
+
+The following steps were performed on the sampled dataset:
+
+1. **Relational Storage**  
+   The data was ingested into a local **SQLite** database to enable structured querying and efficient filtering.
+
+2. **Vectorization and Indexing**  
+   Textual data from the tickets was embedded using the Hugging Face model  
+   `BAAI/bge-small-en-v1.5`.  
+   The embeddings were then stored using **LangChain** with a **Chroma** vector store, creating a local semantic index for similarity-based retrieval.
+
+3. **Hybrid Retrieval Setup**  
+   Both the SQLite database (for structured queries) and the Chroma vector database (for semantic search) were integrated into a hybrid retrieval pipeline.
+
+4. **LLM Integration**  
+   The retrieved context is passed to a local language model,  
+   `Qwen/Qwen2.5-3B-Instruct`, which serves as the reasoning and response generation component of the agent.
 
 
 ## Technical Description
