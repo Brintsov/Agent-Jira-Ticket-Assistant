@@ -1,22 +1,38 @@
 {
-  "cases": [
-    {
-      "id": "route_project_only_exact",
-      "query": "Find 3 tickets for project BEAM",
-      "expected_tool": "exact_ticket_search",
-      "category": "project_only"
-    },
-    {
-      "id": "route_project_topic_hybrid",
-      "query": "Find up to 3 open BEAM bugs about login failures",
-      "expected_tool": "hybrid_ticket_search",
-      "category": "project_plus_topic"
-    },
-    {
-      "id": "route_key_lookup_ticket_key",
-      "query": "Show BEAM-123 and CORE-456",
-      "expected_tool": "ticket_key_search",
-      "category": "key_lookup"
-    }
-  ]
+    "cases": [
+        {
+            "id": "route_ignite_exact_10",
+            "query": "Search for exact 10 Ignite project tickets",
+            "expected_tool": "exact_ticket_search",
+            "expected_call": {
+                "project_key": "IGNITE",
+                "limit": 10
+            },
+            "category": "project_only"
+        },
+        {
+            "id": "route_sql_semantic_3",
+            "query": "Find 3 tickets related to SQL",
+            "expected_tool": "semantic_ticket_search",
+            "expected_call": {
+                "semantic_query": "SQL",
+                "k": 3
+            },
+            "category": "topic_only"
+        },
+        {
+            "id": "route_http_bug_hybrid",
+            "query": "Search for tickets where project key is WW where the issue type is Bug and the status is Open. Among those tickets, select the ones related to HTTP status issues",
+            "expected_tool": "hybrid_ticket_search",
+            "expected_call": {
+                "semantic_query": "HTTP status issues",
+                "project_key": "WW",
+                "status_name": "Open",
+                "issue_type_name": "Bug",
+                "k": 10
+            },
+            "category": "project_plus_topic"
+        }
+    ]
 }
+
