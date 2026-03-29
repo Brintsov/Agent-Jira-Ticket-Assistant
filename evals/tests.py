@@ -1,14 +1,11 @@
-import argparse
 import re
-import json
 import sys
+import yaml
+import json
+import argparse
+
 from pathlib import Path
 from typing import Any, Dict
-
-try:
-    import yaml
-except Exception:  # noqa: BLE001
-    yaml = None
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +24,6 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     if yaml is not None:
         return yaml.safe_load(content)
 
-    # Files are intentionally JSON-compatible YAML so this fallback works without PyYAML.
     return json.loads(content)
 
 
@@ -72,7 +68,7 @@ def _read_jsonl(path: Path) -> list[Dict[str, Any]]:
 def run_live_routing_cases(routing_cases: list[Dict[str, Any]]) -> int:
     """Run routing cases through the real pipeline and validate selected tools from logs."""
     from jira_knowledge_expert import JiraAssistantPipeline, PipelineConfig
-    from observation.logging import get_log_file_path
+    from observation.logger import get_log_file_path
 
     pipeline = JiraAssistantPipeline(PipelineConfig())
     log_path = get_log_file_path()
@@ -125,8 +121,6 @@ def run(live_routing: bool = False) -> int:
     print(f"Loaded {len(routing.get('cases', []))} routing case(s) from {ROUTING_FILE}")
     print(f"Loaded {len(grounding.get('cases', []))} grounding case(s) from {GROUNDING_FILE}")
 
-    # Routing pack is declarative by design; execution is done by whichever router harness is used.
-    # Here we at least enforce schema presence.
     required_routing = {"id", "query", "expected_tool"}
     for case in routing.get("cases", []):
         missing = required_routing - set(case.keys())
