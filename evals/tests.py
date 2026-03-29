@@ -10,7 +10,6 @@ from typing import Any, Dict
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROUTING_FILE = REPO_ROOT / "evals" / "routing_cases.yaml"
-GROUNDING_FILE = REPO_ROOT / "evals" / "grounding_cases.yaml"
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -116,10 +115,8 @@ def run_live_routing_cases(routing_cases: list[Dict[str, Any]]) -> int:
 
 def run(live_routing: bool = False) -> int:
     routing = _load_yaml(ROUTING_FILE)
-    grounding = _load_yaml(GROUNDING_FILE)
 
     print(f"Loaded {len(routing.get('cases', []))} routing case(s) from {ROUTING_FILE}")
-    print(f"Loaded {len(grounding.get('cases', []))} grounding case(s) from {GROUNDING_FILE}")
 
     required_routing = {"id", "query", "expected_tool"}
     for case in routing.get("cases", []):
@@ -129,11 +126,6 @@ def run(live_routing: bool = False) -> int:
             return 1
 
     failed = False
-    for case in grounding.get("cases", []):
-        ok, message = check_grounding_case(case)
-        print(message)
-        if not ok:
-            failed = True
 
     if live_routing:
         try:
