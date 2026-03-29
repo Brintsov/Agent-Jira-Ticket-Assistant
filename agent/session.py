@@ -1,11 +1,11 @@
-
 import time
 from typing import Iterable
 
 from observation.logging import (
-    get_used_tools,
     estimate_tokens,
     generate_request_id,
+    get_logged_tools_for_request,
+    get_used_tools,
     log_event,
     reset_used_tools,
     reset_request_id,
@@ -35,12 +35,15 @@ class AgentSession:
         try:
             response = agent.run(prompt, reset=effective_reset)
             latency_ms = round((time.perf_counter() - start) * 1000, 2)
+            local_tools = get_used_tools()
+            logged_tools = get_logged_tools_for_request(request_id)
+            tools_used = local_tools or logged_tools
             log_event(
                 "request.end",
                 request_id=request_id,
                 latency_ms=latency_ms,
-                response_tokens_est=estimate_tokens(str(response)),
-                tools_used=get_used_tools(),
+                response_tokens_est=str(estimate_tokens(response)),
+                tools_used=tools_used,
             )
             self._is_first_turn = False
             return response
