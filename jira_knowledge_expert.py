@@ -65,10 +65,6 @@ class JiraAssistantPipeline:
         return self.session.run(self.agent, prompt, reset=reset)
 
     def run_many(self, prompts: Iterable[str], *, reset_first: bool = True) -> list[tuple[str, str]]:
-        results: list[tuple[str, str]] = []
-        for i, prompt in enumerate(prompts):
-            response = self.run(prompt, reset=(reset_first if i == 0 else False))
-            results.append((prompt, response))
         return self.session.run_many(self.agent, prompts, reset_first=reset_first)
 
     def interactive_chat(self) -> None:
