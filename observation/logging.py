@@ -12,6 +12,7 @@ _current_request_id: ContextVar[str | None] = ContextVar("current_request_id", d
 _current_used_tools: ContextVar[list[str]] = ContextVar("current_used_tools", default=[])
 _logger = logging.getLogger("jira_agent_observability")
 _default_log_path = Path("logs/agent_observability.jsonl")
+_request_id_env_var = "JIRA_AGENT_REQUEST_ID"
 
 
 def get_log_file_path() -> Path:
@@ -42,15 +43,17 @@ def generate_request_id() -> str:
 
 
 def set_request_id(request_id: str):
+    os.environ[_request_id_env_var] = request_id
     return _current_request_id.set(request_id)
 
 
 def reset_request_id(token) -> None:
     _current_request_id.reset(token)
+    os.environ.pop(_request_id_env_var, None)
 
 
 def get_request_id() -> str | None:
-    return _current_request_id.get()
+    return _current_request_id.get() or os.getenv(_request_id_env_var)
 
 
 def reset_used_tools() -> None:
@@ -67,10 +70,34 @@ def get_used_tools() -> list[str]:
     return list(_current_used_tools.get())
 
 
+def get_logged_tools_for_request(request_id: str) -> list[str]:
+    """Read persisted JSONL events and return tools observed for a request."""
+    path = get_log_file_path()
+    if not path.exists():
+        return []
+
+    tools: list[str] = []
+    with path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("request_id") != request_id:
+                continue
+            if event.get("event") == "tool.start":
+                tool_name = event.get("tool")
+                if isinstance(tool_name, str) and tool_name:
+                    tools.append(tool_name)
+    return tools
+
+
 def estimate_tokens(text: str | None) -> int:
     if not text:
         return 0
-    # rough approximation suitable for quick observability hooks
     return max(1, int(len(text.split()) * 1.3))
 
 
@@ -82,4 +109,3 @@ def log_event(event: str, **fields: Any) -> None:
         **fields,
     }
     _logger.info(json.dumps(payload, default=str, ensure_ascii=False))
-    
