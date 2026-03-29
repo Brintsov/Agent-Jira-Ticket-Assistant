@@ -1,13 +1,13 @@
+from typing import Any
 from pathlib import Path
 from time import perf_counter
-from typing import Any
 
-from langchain_huggingface import HuggingFaceEmbeddings
 from smolagents import CodeAgent
 from smolagents.models import MLXModel
+from langchain_huggingface import HuggingFaceEmbeddings
 
 from agent.system_prompt import SYSTEM_PROMPT
-from observation.logging import log_event, append_used_tool
+from observation.logger import log_event, append_used_tool
 from ticket_repository import TicketRepository
 from tools.analysis_tools import AnalyzeTicketDistributionTool, AnalyzeTicketPatternsTool
 from tools.conversational_tools import DiscussTicketFindingsTool, SummarizeTicketsTool
@@ -26,11 +26,22 @@ def _instrument_tool(tool) -> None:
 
     def wrapped_forward(*args, **kwargs):
         start = perf_counter()
-        log_event("tool.start", tool=tool_name)
+        log_event(
+            "tool.start",
+            tool=tool_name,
+            args_count=max(0, len(args) - 1),
+            kwargs_keys=sorted(kwargs.keys()),
+        )
         try:
             result = original_forward(*args, **kwargs)
             latency_ms = round((perf_counter() - start) * 1000, 2)
-            log_event("tool.end", tool=tool_name, latency_ms=latency_ms)
+            log_event(
+                "tool.end",
+                tool=tool_name,
+                latency_ms=latency_ms,
+                result_type=type(result).__name__,
+                result_chars=len(str(result)),
+            )
             append_used_tool(tool_name)
             return result
         except Exception as exc:
@@ -42,6 +53,11 @@ def _instrument_tool(tool) -> None:
 
 
 def create_embeddings(config: Any) -> HuggingFaceEmbeddings:
+    log_event(
+        "pipeline.embeddings.init",
+        embedding_model=config.embedding_model,
+        embedding_device=config.embedding_device,
+    )
     return HuggingFaceEmbeddings(
         model_name=config.embedding_model,
         model_kwargs={"device": config.embedding_device},
@@ -58,6 +74,12 @@ def create_repository(config: Any, embeddings: HuggingFaceEmbeddings) -> TicketR
     if not vectorstore_path.exists():
         raise FileNotFoundError(f"Vector store not found: {vectorstore_path}")
 
+    log_event(
+        "pipeline.repository.init",
+        db_path=str(db_path),
+        vectorstore_path=str(vectorstore_path),
+    )
+
     return TicketRepository(
         str(db_path),
         str(vectorstore_path),
@@ -66,6 +88,11 @@ def create_repository(config: Any, embeddings: HuggingFaceEmbeddings) -> TicketR
 
 
 def create_model(config: Any) -> MLXModel:
+    log_event(
+        "pipeline.model.init",
+        llm_model=config.llm_model,
+        max_tokens=config.max_tokens,
+    )
     return MLXModel(
         model_id=config.llm_model,
         max_tokens=config.max_tokens,
@@ -96,6 +123,13 @@ def create_code_agent(config: Any, repository: TicketRepository, model: MLXModel
     ]
     for tool in tools:
         _instrument_tool(tool)
+
+    log_event(
+        "pipeline.agent.init",
+        tool_names=[getattr(tool, "name", tool.__class__.__name__) for tool in tools],
+        timeout_seconds=config.timeout_seconds,
+        verbosity_level=config.verbosity_level,
+    )
 
     return CodeAgent(
         tools=tools,
