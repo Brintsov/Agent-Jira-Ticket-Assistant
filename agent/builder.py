@@ -7,7 +7,7 @@ from smolagents import CodeAgent
 from smolagents.models import MLXModel
 
 from agent.system_prompt import SYSTEM_PROMPT
-from observation.logging import log_event
+from observation.logging import log_event, append_used_tool
 from ticket_repository import TicketRepository
 from tools.analysis_tools import AnalyzeTicketDistributionTool, AnalyzeTicketPatternsTool
 from tools.conversational_tools import DiscussTicketFindingsTool, SummarizeTicketsTool
@@ -31,6 +31,7 @@ def _instrument_tool(tool) -> None:
             result = original_forward(*args, **kwargs)
             latency_ms = round((perf_counter() - start) * 1000, 2)
             log_event("tool.end", tool=tool_name, latency_ms=latency_ms)
+            append_used_tool(tool_name)
             return result
         except Exception as exc:
             latency_ms = round((perf_counter() - start) * 1000, 2)
