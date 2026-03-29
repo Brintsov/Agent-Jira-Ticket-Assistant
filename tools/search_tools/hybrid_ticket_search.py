@@ -1,0 +1,181 @@
+from smolagents import Tool
+from typing import Dict, Any, Optional, List
+
+
+
+class HybridTicketSearchTool(Tool):
+    name = "hybrid_ticket_search"
+    description = (
+        "Search Jira tickets using a combination of exact structured filtering and semantic similarity.\n\n"
+
+        "Use this tool when the user asks for tickets that match both:\n"
+        "1. explicit structured constraints such as project, status, resolution, issue type, or priority\n"
+        "2. a topic, concept, problem pattern, or meaning-based description\n\n"
+
+        "This tool performs a hybrid retrieval flow:\n"
+        "- first narrows the candidate set using structured filters\n"
+        "- then applies semantic search within that candidate set\n"
+        "- then returns full ticket rows for the best-matching tickets\n\n"
+
+        "Best use cases:\n"
+        '- "Find resolved IGNITE bugs about SQL deadlocks"\n'
+        '- "Show high priority WW tickets related to authentication failures"\n'
+        '- "Find Done improvements in project CORE related to deployment instability"\n'
+        '- "Find open bugs in PAYMENTS similar to timeout issues"\n\n'
+
+        "Prefer this tool when the user combines exact filters with conceptual language.\n\n"
+
+        "Do not use this tool when:\n"
+        "- the request is purely exact and does not need semantic matching; use exact search instead\n"
+        "- the request is purely fuzzy and has no structured constraints; use semantic search instead\n\n"
+
+        "Notes for agent use:\n"
+        "- Use this tool when the user mixes exact attributes and fuzzy topic language\n"
+        '- This is usually the best tool for requests like "find bugs in project X about Y"\n'
+        "- The returned tickets are full structured rows and are suitable for summarization\n"
+        "- This tool is often a better first choice than manually chaining exact and semantic search"
+    )
+
+    inputs = {
+        "semantic_query": {
+            "type": "string",
+            "description": (
+                "Natural-language description of the issue theme, concept, or problem pattern "
+                "to search for semantically, for example 'SQL deadlocks', 'broken login flow', "
+                "or 'deployment instability'."
+            ),
+        },
+        "project_key": {
+            "type": "string",
+            "description": "Exact Jira project key used to narrow candidates before semantic ranking.",
+            "nullable": True,
+        },
+        "status_name": {
+            "type": "string",
+            "description": "Exact status name used to narrow candidates before semantic ranking.",
+            "nullable": True,
+        },
+        "resolution_name": {
+            "type": "string",
+            "description": "Exact resolution name used to narrow candidates before semantic ranking.",
+            "nullable": True,
+        },
+        "issue_type_name": {
+            "type": "string",
+            "description": "Exact issue type name used to narrow candidates before semantic ranking.",
+            "nullable": True,
+        },
+        "priority_name": {
+            "type": "string",
+            "description": "Exact priority name used to narrow candidates before semantic ranking.",
+            "nullable": True,
+        },
+        "summary_contains": {
+            "type": "string",
+            "description": (
+                "Optional case-insensitive substring that must appear in the summary "
+                "before semantic ranking."
+            ),
+            "nullable": True,
+        },
+        "description_contains": {
+            "type": "string",
+            "description": (
+                "Optional case-insensitive substring that must appear in the description "
+                "before semantic ranking."
+            ),
+            "nullable": True,
+        },
+        "limit": {
+            "type": "integer",
+            "description": (
+                "Maximum number of structured candidate tickets to consider before semantic reranking."
+            ),
+            "default": 20,
+            "nullable": True,
+        },
+        "k": {
+            "type": "integer",
+            "description": (
+                "Maximum number of semantically best-matching tickets to return after reranking."
+            ),
+            "default": 5,
+            "nullable": True,
+        },
+    }
+
+    output_type = "object"
+
+    def __init__(
+        self,
+        ticket_repository,
+        default_limit: int = 20,
+        default_k: int = 5,
+    ):
+        super().__init__()
+        self.repo = ticket_repository
+        self.default_limit = default_limit
+        self.default_k = default_k
+
+    def forward(
+        self,
+        semantic_query: str,
+        project_key: Optional[str] = None,
+        status_name: Optional[str] = None,
+        resolution_name: Optional[str] = None,
+        issue_type_name: Optional[str] = None,
+        priority_name: Optional[str] = None,
+        summary_contains: Optional[str] = None,
+        description_contains: Optional[str] = None,
+        limit: Optional[int] = None,
+        k: Optional[int] = None,
+    ) -> Dict[str, Any]:
+
+        limit = limit or self.default_limit
+        k = k or self.default_k
+
+        if not semantic_query or not semantic_query.strip():
+            return {
+                "count": 0,
+                "tickets": [],
+                "search_type": "hybrid",
+                "error": "semantic_query must be a non-empty string",
+            }
+
+        if limit <= 0:
+            return {
+                "count": 0,
+                "tickets": [],
+                "search_type": "hybrid",
+                "error": "limit must be greater than 0",
+            }
+
+        if k <= 0:
+            return {
+                "count": 0,
+                "tickets": [],
+                "search_type": "hybrid",
+                "error": "k must be greater than 0",
+            }
+
+        rows = self.repo.hybrid_search(
+            semantic_query=semantic_query,
+            sql_filters={
+                "project_key": project_key,
+                "status_name": status_name,
+                "resolution_name": resolution_name,
+                "issue_type_name": issue_type_name,
+                "priority_name": priority_name,
+                "summary_contains": summary_contains,
+                "description_contains": description_contains,
+                "limit": limit,
+            },
+            k=k,
+        )
+
+        return {
+            "count": len(rows),
+            "tickets": rows,
+            "search_type": "hybrid",
+            "semantic_query": semantic_query,
+        }
