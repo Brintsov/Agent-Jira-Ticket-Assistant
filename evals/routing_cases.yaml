@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "id": "route_project_only_exact",
+      "query": "Find 3 tickets for project BEAM",
+      "expected_tool": "exact_ticket_search",
+      "category": "project_only"
+    },
+    {
+      "id": "route_project_topic_hybrid",
+      "query": "Find up to 3 open BEAM bugs about login failures",
+      "expected_tool": "hybrid_ticket_search",
+      "category": "project_plus_topic"
+    },
+    {
+      "id": "route_key_lookup_ticket_key",
+      "query": "Show BEAM-123 and CORE-456",
+      "expected_tool": "ticket_key_search",
+      "category": "key_lookup"
+    }
+  ]
+}
